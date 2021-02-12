@@ -58,26 +58,30 @@ public struct S3 {
         return (key, secret)
     }
     
-    
     public func upload(file fileURL: URL, to bucket: String, in region: String = "us-east-1") throws -> (data: NSData?, response: HTTPURLResponse) {
+        let fileData = try! Data(contentsOf: fileURL)
+        let filename = fileURL.lastPathComponent
+        return try upload(data: fileData, to: bucket, fileName: filename, in: region)
+    }
+    
+    public func upload(data: Data, to bucket: String, fileName: String, in region: String = "us-east-1") throws -> (data: NSData?, response: HTTPURLResponse) {
         
-        let s3URL = URL(string: "https://s3.wasabisys.com/\(bucket)/\(fileURL.lastPathComponent)")!
+        let s3URL = URL(string: "https://s3.wasabisys.com/\(bucket)/\(fileName)")!
         let signer = S3V4Signer(accessKey: key, secretKey: secret, regionName: region)//create the signer
         
-        
         //get the file
-        let fileData = try! Data(contentsOf: fileURL)
-        let bodyDigest = sha256_hexdigest(fileData)
-        let fileStream = InputStream(fileAtPath: fileURL.path)!
+        let bodyDigest = sha256_hexdigest(data)
+        let dataStream = InputStream(data: data)
+        
 
         //create an URL Request
         let request = NSMutableURLRequest(url: s3URL)
         request.cachePolicy = .reloadIgnoringCacheData
         request.httpMethod = "PUT"
-        request.httpBodyStream = fileStream
+        request.httpBodyStream = dataStream
         
         //create the signed headers
-        var additionalHeaders = ["Content-Length": "\(fileData.count)"]
+        var additionalHeaders = ["Content-Length": "\(data.count)"]
         additionalHeaders["x-amz-acl"] = "authenticated-read"
         let headers = try signer.signedHeaders(url: s3URL, httpMethod: "PUT", bodyDigest: bodyDigest, additionalHeaders: additionalHeaders)
         //set the headers on an URLRequest
